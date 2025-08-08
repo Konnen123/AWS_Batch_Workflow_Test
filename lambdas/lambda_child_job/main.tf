@@ -10,7 +10,7 @@ resource "aws_lambda_function" "create_batch_jobs" {
   source_code_hash = base64sha256(filebase64(local.lambda_main_file_path))
 
   runtime = "provided.al2023"
-  timeout = "900"
+  timeout = "120"
   architectures = ["arm64"]
   handler = "bootstrap"
   memory_size = "128"

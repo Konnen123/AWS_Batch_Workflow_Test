@@ -54,7 +54,7 @@ func handleRequest(ctx context.Context, event map[string]interface{}) (map[strin
 	paginator := s3.NewListObjectsV2Paginator(s3Client, &s3.ListObjectsV2Input{
 		Bucket:  aws.String(bucketName),
 		Prefix:  aws.String("images/"),
-		MaxKeys: aws.Int32(100),
+		MaxKeys: aws.Int32(10),
 	})
 
 	objectKeysPages, err := getObjectKeysPages(paginator)
@@ -66,6 +66,8 @@ func handleRequest(ctx context.Context, event map[string]interface{}) (map[strin
 		}, nil
 	}
 	log.Printf("Retrieved object keys pages: %d pages", len(objectKeysPages))
+
+	jobId := uuid.New().String()
 	for i, page := range objectKeysPages {
 		log.Printf("Page %d: %d keys", i+1, len(page))
 		objectKeys := make([]string, len(page))
@@ -73,7 +75,7 @@ func handleRequest(ctx context.Context, event map[string]interface{}) (map[strin
 			objectKeys[j] = *key
 		}
 
-		err := sendSNSMessage(objectKeys, i+1)
+		err := sendSNSMessage(&jobId, objectKeys, i+1)
 		if err != nil {
 			log.Printf("Error sending SNS message for page %d: %v", i+1, err)
 			return nil, err
@@ -107,9 +109,9 @@ func getObjectKeysPages(paginator *s3.ListObjectsV2Paginator) ([][]*string, erro
 	return objectKeysPages, nil
 }
 
-func sendSNSMessage(objectKeys []string, taskNumber int) error {
+func sendSNSMessage(jobId *string, objectKeys []string, taskNumber int) error {
 	snsMessage := SNSMessage{
-		JobId:      uuid.New().String(),
+		JobId:      *jobId,
 		ObjectKeys: objectKeys,
 		EventId:    "mock-event-id", // Replace with actual event ID if available
 		TaskNumber: taskNumber,

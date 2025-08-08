@@ -97,35 +97,12 @@ func streamZipToS3(bucketName, archiveKey string, fileKeys []string) error {
 
 	// Write ZIP contents
 	for _, s3Key := range fileKeys {
-		log.Printf("Adding %s", s3Key)
 
-		// Stream file from S3
-		s3Input := s3.GetObjectInput{
-			Bucket: aws.String(bucketName),
-			Key:    aws.String(s3Key),
-		}
-		object, err := s3Client.GetObject(ctx, &s3Input)
+		err := writeZipFile(&s3Key, pipeWriter, zipWriter)
 
 		if err != nil {
+			log.Printf("Error writing zip file %s: %v", s3Key, err)
 			pipeWriter.CloseWithError(err)
-			return fmt.Errorf("get object %s: %w", s3Key, err)
-		}
-
-		header := &zip.FileHeader{
-			Name:   s3Key,
-			Method: zip.Deflate,
-		}
-		writer, err := zipWriter.CreateHeader(header)
-		if err != nil {
-			pipeWriter.CloseWithError(err)
-			return fmt.Errorf("create zip header: %w", err)
-		}
-
-		_, err = io.Copy(writer, object.Body)
-		object.Body.Close()
-		if err != nil {
-			pipeWriter.CloseWithError(err)
-			return fmt.Errorf("copy file %s to zip: %w", s3Key, err)
 		}
 	}
 
@@ -133,9 +110,55 @@ func streamZipToS3(bucketName, archiveKey string, fileKeys []string) error {
 	zipWriter.Close()
 	pipeWriter.Close()
 
-	// Wait for upload to finish
 	waitGroup.Wait()
+
+	log.Printf("Finished writing zip file %s", archiveKey)
+
+	// Wait for upload to finish
 	return uploadErr
+}
+
+func writeZipFile(s3Key *string, pipeWriter *io.PipeWriter, zipWriter *zip.Writer) error {
+	log.Printf("Adding %s", *s3Key)
+
+	// Stream file from S3
+	s3Input := s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    s3Key,
+	}
+	object, err := s3Client.GetObject(ctx, &s3Input)
+
+	if err != nil {
+		pipeWriter.CloseWithError(err)
+		return fmt.Errorf("get object %s: %w", *s3Key, err)
+	}
+
+	header := &zip.FileHeader{
+		Name:   *s3Key,
+		Method: zip.Store,
+	}
+
+	writer, err := zipWriter.CreateHeader(header)
+	if err != nil {
+		pipeWriter.CloseWithError(err)
+		return fmt.Errorf("create zip header: %w", err)
+	}
+
+	_, err = io.Copy(writer, object.Body)
+
+	if err != nil {
+		pipeWriter.CloseWithError(err)
+		return fmt.Errorf("writing zip file in crtitical section: %w", err)
+	}
+
+	object.Body.Close()
+
+	if err != nil {
+		pipeWriter.CloseWithError(err)
+		return fmt.Errorf("copy file %s to zip: %w", *s3Key, err)
+	}
+
+	return nil
 }
 
 func main() {
