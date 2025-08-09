@@ -10,7 +10,7 @@ resource "aws_lambda_function" "create_batch_jobs" {
   source_code_hash = base64sha256(filebase64(local.lambda_main_file_path))
 
   runtime = "provided.al2023"
-  timeout = "30"
+  timeout = "120"
   architectures = ["arm64"]
   handler = "bootstrap"
   memory_size = "128"
@@ -18,8 +18,7 @@ resource "aws_lambda_function" "create_batch_jobs" {
   environment {
     variables = {
       BUCKET_NAME = var.s3_name,
-      SNS_TOPIC_CREATE_JOB_ARN = var.sns_create_job_arn
-      DYNAMODB_TABLE_NAME = var.dynamodb_table_name
+      DYNAMODB_TABLE_NAME = var.dynamodb_table_name,
     }
   }
 

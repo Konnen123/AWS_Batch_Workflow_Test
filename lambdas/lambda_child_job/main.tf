@@ -18,7 +18,8 @@ resource "aws_lambda_function" "create_batch_jobs" {
   environment {
     variables = {
       BUCKET_NAME = var.s3_name,
-      SNS_TOPIC_CREATE_JOB_ARN = var.sns_create_job_arn
+      SNS_TOPIC_CHILD_JOB_FINISHED_ARN = var.sns_child_job_finished_arn,
+      DYNAMODB_TABLE_NAME = var.dynamodb_table_name
     }
   }
 
